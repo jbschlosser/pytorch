@@ -244,11 +244,11 @@ SmoothL1LossImpl::SmoothL1LossImpl(
 void SmoothL1LossImpl::reset() {}
 
 void SmoothL1LossImpl::pretty_print(std::ostream& stream) const {
-  stream << "torch::nn::SmoothL1Loss";
+  stream << "torch::nn::SmoothL1Loss(beta=" << options.beta() << ", huber=" << options.huber() << ")";
 }
 
 Tensor SmoothL1LossImpl::forward(const Tensor& input, const Tensor& target) {
-  return F::detail::smooth_l1_loss(input, target, options.reduction());
+  return F::detail::smooth_l1_loss(input, target, options.reduction(), options.beta(), options.huber());
 }
 
 // ============================================================================

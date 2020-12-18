@@ -2058,6 +2058,19 @@ TEST_F(ModulesTest, SmoothL1LossNoReduction) {
   ASSERT_EQ(input.sizes(), input.grad().sizes());
 }
 
+TEST_F(ModulesTest, SmoothL1LossBetaHuber) {
+  SmoothL1Loss loss(SmoothL1LossOptions().reduction(torch::kMean).beta(0.5).huber(true));
+  auto input = torch::tensor({0.1, 1.5, 10.0}, torch::dtype(torch::kFloat).requires_grad(true));
+  auto target = torch::tensor({0., 1., 5.}, torch::kFloat);
+  auto output = loss(input, target);
+  auto expected = torch::tensor(1.67 * 0.5, torch::kFloat);
+  auto s = output.sum();
+  s.backward();
+
+  ASSERT_TRUE(output.allclose(expected));
+  ASSERT_EQ(input.sizes(), input.grad().sizes());
+}
+
 TEST_F(ModulesTest, MultiLabelMarginLossNoReduction) {
   MultiLabelMarginLoss loss(torch::kNone);
   auto input = torch::tensor({{0.1, 0.2, 0.4, 0.8}}, torch::dtype(torch::kFloat).requires_grad(true));

@@ -307,9 +307,13 @@ inline Tensor cosine_embedding_loss(
 
 // ============================================================================
 
-inline Tensor _smooth_l1_loss(const Tensor& input, const Tensor& target, double beta = 1.) {
+inline Tensor _smooth_l1_loss(const Tensor& input, const Tensor& target, double beta = 1., bool huber = false) {
     auto t = torch::abs(input - target);
-    return torch::where(t < beta, 0.5 * torch::pow(t, 2) / beta, t - 0.5 * beta);
+    if (huber) {
+      return torch::where(t < beta, 0.5 * torch::pow(t, 2), beta * (t - 0.5 * beta));
+    } else {
+      return torch::where(t < beta, 0.5 * torch::pow(t, 2) / beta, t - 0.5 * beta);
+    }
 }
 
 #ifndef DOXYGEN_SHOULD_SKIP_THIS
@@ -318,7 +322,8 @@ inline Tensor smooth_l1_loss(
     const Tensor& input,
     const Tensor& target,
     SmoothL1LossFuncOptions::reduction_t reduction,
-    double beta = 1.) {
+    double beta = 1.,
+    bool huber = false) {
   if (target.sizes() != input.sizes()) {
     TORCH_WARN("Using a target size (", target.sizes(), ") that is different to the input size (", input.sizes(), "). ",
                   "This will likely lead to incorrect results due to broadcasting. ",
@@ -326,7 +331,8 @@ inline Tensor smooth_l1_loss(
   }
 
   std::vector<Tensor> expanded_tensors = torch::broadcast_tensors({input, target});
-  return torch::smooth_l1_loss(expanded_tensors[0], expanded_tensors[1], enumtype::reduction_get_enum(reduction), beta);
+  return torch::smooth_l1_loss(expanded_tensors[0], expanded_tensors[1], enumtype::reduction_get_enum(reduction),
+      beta, huber);
 }
 } // namespace detail
 #endif /* DOXYGEN_SHOULD_SKIP_THIS */
@@ -346,8 +352,9 @@ inline Tensor smooth_l1_loss(
     const Tensor& input,
     const Tensor& target,
     const SmoothL1LossFuncOptions& options = {},
-    double beta = 1.) {
-  return detail::smooth_l1_loss(input, target, options.reduction(), beta);
+    double beta = 1.,
+    bool huber = false) {
+  return detail::smooth_l1_loss(input, target, options.reduction(), beta, huber);
 }
 
 // ============================================================================

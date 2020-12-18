@@ -46,7 +46,7 @@ static void addcdiv_cpu_kernel(TensorIterator& iter, Scalar value) {
   });
 }
 
-static void smooth_l1_backward_cpu_kernel(TensorIterator& iter, Scalar norm, double beta) {
+static void smooth_l1_backward_cpu_kernel(TensorIterator& iter, Scalar norm, double beta, bool huber) {
   ScalarType dtype = iter.dtype(0);
   AT_DISPATCH_ALL_TYPES(dtype, "smooth_l1_backward_cpu_out", [&] {
     auto norm_val = norm.to<scalar_t>();
@@ -59,26 +59,31 @@ static void smooth_l1_backward_cpu_kernel(TensorIterator& iter, Scalar norm, dou
     cpu_kernel_vec(iter,
       [=](scalar_t input, scalar_t target, scalar_t grad_output) -> scalar_t {
         const auto x = input - target;
-        if (x <= -beta)
-          return -norm_val * grad_output;
-        else if (x >= beta)
-          return norm_val * grad_output;
-        else
-          return norm_val * x * grad_output / beta;
+        if (x <= -beta) {
+          const auto output = -norm_val * grad_output;
+          return huber ? (output * beta) : output;
+        } else if (x >= beta) {
+          const auto output = norm_val * grad_output;
+          return huber ? (output * beta) : output;
+        } else {
+          const auto output = norm_val * x * grad_output;
+          return huber ? output : (output / beta);
+        }
       },
-      [norm_val_vec, beta_val_vec, neg_1_vec, zero_vec, pos_1_vec](
-         Vec256<scalar_t> input, Vec256<scalar_t> target, Vec256<scalar_t> grad_output) -> Vec256<scalar_t> {
-        // using two blendv calls to simulate the 3 cases
-        // 1        if  x >= beta
-        // -1       if x <= -beta
-        // x / beta if |x| < beta
-        const auto x = input - target;
-        const auto pos_or_neg_1_vec = Vec256<scalar_t>::blendv(
-            neg_1_vec, pos_1_vec, x > zero_vec);
-        const auto x_abs = x.abs();
-        const auto output = Vec256<scalar_t>::blendv(
-            x / beta_val_vec, pos_or_neg_1_vec, x_abs >= beta_val_vec);
-        return norm_val_vec * output * grad_output;
+      [norm_val_vec, beta_val_vec, neg_1_vec, zero_vec, pos_1_vec, huber](
+        Vec256<scalar_t> input, Vec256<scalar_t> target, Vec256<scalar_t> grad_output) -> Vec256<scalar_t> {
+          // using two blendv calls to simulate the 3 cases
+          // 1        if  x >= beta
+          // -1       if x <= -beta
+          // x / beta if |x| < beta
+          const auto x = input - target;
+          const auto pos_or_neg_1_vec = Vec256<scalar_t>::blendv(
+              neg_1_vec, pos_1_vec, x > zero_vec);
+          const auto x_abs = x.abs();
+          const auto output = huber
+            ? Vec256<scalar_t>::blendv(x, pos_or_neg_1_vec * beta_val_vec, x_abs >= beta_val_vec)
+            : Vec256<scalar_t>::blendv(x / beta_val_vec, pos_or_neg_1_vec, x_abs >= beta_val_vec);
+          return norm_val_vec * output * grad_output;
       }
     );
   });

@@ -9,12 +9,18 @@
 
 namespace at { namespace native {
 
-void smooth_l1_kernel_cuda(TensorIterator& iter, double beta) {
-  AT_DISPATCH_FLOATING_TYPES_AND_HALF(iter.dtype(), "smooth_l1_cuda", [&iter, beta]() {
+void smooth_l1_kernel_cuda(TensorIterator& iter, double beta, bool huber) {
+  AT_DISPATCH_FLOATING_TYPES_AND_HALF(iter.dtype(), "smooth_l1_cuda", [&iter, beta, huber]() {
     scalar_t beta_val(beta);
-    gpu_kernel(iter, [beta_val] GPU_LAMBDA (scalar_t a, scalar_t b) -> scalar_t {
+    gpu_kernel(iter, [beta_val, huber]GPU_LAMBDA (scalar_t a, scalar_t b) -> scalar_t {
       auto z = ::abs(a - b);
-      return z < beta_val ? scalar_t(0.5) * z * z / beta_val : z - scalar_t(0.5) * beta_val;
+      if (z < beta_val) {
+        const auto output = scalar_t(0.5) * z * z;
+        return huber ? output : (output / beta_val);
+      } else {
+        const auto output = z - scalar_t(0.5) * beta_val;
+        return huber ? (output * beta_val) : output;
+      }
     });
   });
 }

@@ -765,7 +765,7 @@ class SmoothL1Loss(_Loss):
     element-wise error falls below beta and an L1 term otherwise.
     It is less sensitive to outliers than the `MSELoss` and in some cases
     prevents exploding gradients (e.g. see `Fast R-CNN` paper by Ross Girshick).
-    Also known as the Huber loss:
+    It is a variation of the `Huber loss`_.
 
     .. math::
         \text{loss}(x, y) = \frac{1}{n} \sum_{i} z_{i}
@@ -779,15 +779,27 @@ class SmoothL1Loss(_Loss):
         |x_i - y_i| - 0.5 * beta, & \text{otherwise }
         \end{cases}
 
-    :math:`x` and :math:`y` arbitrary shapes with a total of :math:`n` elements each
-    the sum operation still operates over all the elements, and divides by :math:`n`.
+    or, when ``huber=True``, the true Huber loss is computed, which differs from the above
+    by a factor of ``beta``:
 
-    beta is an optional parameter that defaults to 1.
+    .. math::
+        z_{i} =
+        \begin{cases}
+        0.5 (x_i - y_i)^2, & \text{if } |x_i - y_i| < beta \\
+        beta (|x_i - y_i| - 0.5 * beta), & \text{otherwise }
+        \end{cases}
 
-    Note: When beta is set to 0, this is equivalent to :class:`L1Loss`.
+    ``beta`` is an optional parameter that defaults to 1.
+
+    Note: When ``beta`` is set to 0, this is equivalent to :class:`L1Loss`.
     Passing a negative value in for beta will result in an exception.
 
-    The division by :math:`n` can be avoided if sets ``reduction = 'sum'``.
+    Note: When ``beta`` is set to 1 (the default), the smooth L1 and Huber loss
+    variations are equivalent.
+
+    The division by :math:`n` can be avoided by setting ``reduction = 'sum'``.
+
+    .. _`huber loss`: https://en.wikipedia.org/wiki/Huber_loss
 
     Args:
         size_average (bool, optional): Deprecated (see :attr:`reduction`). By default,
@@ -807,9 +819,11 @@ class SmoothL1Loss(_Loss):
             specifying either of those two args will override :attr:`reduction`. Default: ``'mean'``
         beta (float, optional): Specifies the threshold at which to change between L1 and L2 loss.
             This value defaults to 1.0.
+        huber (bool, optional): When set to ``True``, computes the Huber loss, which differs from the smooth
+            L1 loss by a factor of ``beta``. Default: ``False``
 
     Shape:
-        - Input: :math:`(N, *)` where :math:`*` means, any number of additional
+        - Input: :math:`(N, *)` where :math:`*` means any number of additional
           dimensions
         - Target: :math:`(N, *)`, same shape as the input
         - Output: scalar. If :attr:`reduction` is ``'none'``, then
@@ -818,12 +832,14 @@ class SmoothL1Loss(_Loss):
     """
     __constants__ = ['reduction']
 
-    def __init__(self, size_average=None, reduce=None, reduction: str = 'mean', beta: float = 1.0) -> None:
+    def __init__(self, size_average=None, reduce=None, reduction: str = 'mean', beta: float = 1.0,
+                 huber: bool = False) -> None:
         super(SmoothL1Loss, self).__init__(size_average, reduce, reduction)
         self.beta = beta
+        self.huber = huber
 
     def forward(self, input: Tensor, target: Tensor) -> Tensor:
-        return F.smooth_l1_loss(input, target, reduction=self.reduction, beta=self.beta)
+        return F.smooth_l1_loss(input, target, reduction=self.reduction, beta=self.beta, huber=self.huber)
 
 
 class SoftMarginLoss(_Loss):

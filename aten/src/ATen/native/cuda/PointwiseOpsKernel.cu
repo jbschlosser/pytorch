@@ -26,18 +26,22 @@ void addcdiv_cuda_kernel(TensorIterator& iter, Scalar value) {
   });
 }
 
-void smooth_l1_backward_cuda_kernel(TensorIterator& iter, Scalar norm, double beta) {
-  AT_DISPATCH_ALL_TYPES_AND(kHalf, iter.dtype(), "smooth_l1_backward_cuda", [&iter, &norm, beta] {
-      auto norm_val = norm.to<scalar_t>();
-      scalar_t beta_val(beta);
-      gpu_kernel(iter, [norm_val, beta_val]GPU_LAMBDA(scalar_t input, scalar_t target, scalar_t grad_output) -> scalar_t {
-        const auto x = input - target;
-        if (x < -beta_val)
-          return -norm_val * grad_output;
-        else if (x > beta_val)
-          return norm_val * grad_output;
-        else
-          return norm_val * x * grad_output / beta_val;
+void smooth_l1_backward_cuda_kernel(TensorIterator& iter, Scalar norm, double beta, bool huber) {
+  AT_DISPATCH_ALL_TYPES_AND(kHalf, iter.dtype(), "smooth_l1_backward_cuda", [&iter, &norm, beta, huber] {
+    auto norm_val = norm.to<scalar_t>();
+    scalar_t beta_val(beta);
+    gpu_kernel(iter, [norm_val, beta_val, huber]GPU_LAMBDA(scalar_t input, scalar_t target, scalar_t grad_output) -> scalar_t {
+      const auto x = input - target;
+      if (x < -beta_val) {
+        const auto output = -norm_val * grad_output;
+        return huber ? (output * beta_val) : output;
+      } else if (x > beta_val) {
+        const auto output = norm_val * grad_output;
+        return huber ? (output * beta_val) : output;
+      } else {
+        const auto output = norm_val * x * grad_output;
+        return huber ? output : (output / beta_val);
+      }
     });
   });
 }
