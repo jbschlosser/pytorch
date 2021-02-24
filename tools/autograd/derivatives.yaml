@@ -928,6 +928,9 @@
 - name: renorm(Tensor self, Scalar p, int dim, Scalar maxnorm) -> Tensor
   self: renorm_backward(grad, self, p, dim, maxnorm)
 
+- name: renorm2(Tensor self, Scalar p, int dim, Scalar maxnorm) -> Tensor
+  self: renorm2_backward(grad, self, p, dim, maxnorm)
+
 - name: repeat(Tensor self, int[] repeats) -> Tensor
   self: repeat_backward(grad, repeats, self.sizes())
 

@@ -763,6 +763,32 @@ Tensor renorm_backward(const Tensor & grad, const Tensor & self, Scalar p, int64
   return at::where(mask, grad, grad_norm);
 }
 
+Tensor renorm2_backward(const Tensor & grad, const Tensor & self, Scalar p, int64_t dim, Scalar maxnorm) {
+  auto transposed_sizes = self.transpose(dim, 0).sizes().vec();
+  auto flatten = [&](const Tensor & t) {
+    return t.transpose(dim, 0).contiguous().view({t.size(dim), -1});
+  };
+  auto unflatten = [&](const Tensor & t) {
+    return t.contiguous().view(transposed_sizes).transpose(dim, 0);
+  };
+
+  // renorm computes the norm over all dimensions except `dim`, which is why
+  // we need the flatten and unflatten business. TODO: simplify this when we
+  // add support for norm over multiple dimensions.
+  auto self_flat = flatten(self);
+  auto grad_flat = flatten(grad);
+  auto norm_flat = self_flat.norm(p, 1, true);
+  auto grad_output = (self_flat * grad_flat).sum(1, true);
+  auto nb = norm_backward(grad_output, self_flat, p, norm_flat, 1, true);
+  auto invnorm = (norm_flat + 1e-7).reciprocal();
+  auto grad_norm = unflatten(maxnorm * invnorm * (grad_flat - invnorm * nb));
+  auto norm = unflatten(norm_flat.expand_as(self_flat));
+
+  // TODO: remove the detach once comparison ops no longer require grad
+  auto mask = Variable(norm < maxnorm).detach();
+  return at::where(mask, grad, grad_norm);
+}
+
 Tensor repeat_backward(Tensor grad, IntArrayRef repeats, IntArrayRef input_shape) {
   auto find_iter = std::find(repeats.cbegin(), repeats.cend(), 0);
   if (find_iter != repeats.cend()) {

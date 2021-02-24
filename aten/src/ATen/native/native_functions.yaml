@@ -5266,12 +5266,6 @@
 - func: polygamma_(Tensor(a!) self, int n) -> Tensor(a!)
   variants: method
 
-- func: renorm_(Tensor(a!) self, Scalar p, int dim, Scalar maxnorm) -> Tensor(a!)
-  variants: method
-  dispatch:
-    CPU: legacy::cpu::_th_renorm_
-    CUDA: legacy::cuda::_th_renorm_
-
 - func: lerp_.Scalar(Tensor(a!) self, Tensor end, Scalar weight) -> Tensor(a!)
   variants: method
   dispatch:
@@ -6470,6 +6464,12 @@
     CPU, CUDA: any
     SparseCPU, SparseCUDA: any_sparse
 
+- func: renorm_(Tensor(a!) self, Scalar p, int dim, Scalar maxnorm) -> Tensor(a!)
+  variants: method
+  dispatch:
+    CPU: legacy::cpu::_th_renorm_
+    CUDA: legacy::cuda::_th_renorm_
+
 - func: renorm.out(Tensor self, Scalar p, int dim, Scalar maxnorm, *, Tensor(a!) out) -> Tensor(a!)
   use_c10_dispatcher: hacky_wrapper_for_legacy_signatures
   dispatch:
@@ -6477,6 +6477,24 @@
     CUDA: legacy::cuda::_th_renorm_out
 
 - func: renorm(Tensor self, Scalar p, int dim, Scalar maxnorm) -> Tensor
+  variants: method, function
+  dispatch:
+    CPU: legacy::cpu::_th_renorm
+    CUDA: legacy::cuda::_th_renorm
+
+- func: renorm2_(Tensor(a!) self, Scalar p, int dim, Scalar maxnorm) -> Tensor(a!)
+  variants: method
+  dispatch:
+    CPU: legacy::cpu::_th_renorm_
+    CUDA: legacy::cuda::_th_renorm_
+
+- func: renorm2.out(Tensor self, Scalar p, int dim, Scalar maxnorm, *, Tensor(a!) out) -> Tensor(a!)
+  use_c10_dispatcher: hacky_wrapper_for_legacy_signatures
+  dispatch:
+    CPU: legacy::cpu::_th_renorm_out
+    CUDA: legacy::cuda::_th_renorm_out
+
+- func: renorm2(Tensor self, Scalar p, int dim, Scalar maxnorm) -> Tensor
   variants: method, function
   dispatch:
     CPU: legacy::cpu::_th_renorm
