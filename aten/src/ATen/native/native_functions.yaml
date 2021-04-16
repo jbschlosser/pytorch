@@ -2226,18 +2226,18 @@
     CUDA: logspace_cuda_out
 
 # log_softmax allows positional dtype, unlike most operators, because kwonly is BC-breaking when loading jit models.
-- func: log_softmax.int(Tensor self, int dim, ScalarType? dtype=None) -> Tensor
+- func: log_softmax.int(Tensor self, int dim, ScalarType? dtype=None, float eps=0.0) -> Tensor
   variants: function, method
 
-- func: log_softmax.Dimname(Tensor self, Dimname dim, *, ScalarType? dtype=None) -> Tensor
+- func: log_softmax.Dimname(Tensor self, Dimname dim, *, ScalarType? dtype=None, float eps=0.0) -> Tensor
   variants: function, method
 
-- func: _log_softmax(Tensor self, int dim, bool half_to_float) -> Tensor
+- func: _log_softmax(Tensor self, int dim, bool half_to_float, float eps=0.0) -> Tensor
   dispatch:
     CPU: log_softmax_cpu
     CUDA: log_softmax_cuda
 
-- func: _log_softmax_backward_data(Tensor grad_output, Tensor output, int dim, Tensor self) -> Tensor
+- func: _log_softmax_backward_data(Tensor grad_output, Tensor output, int dim, Tensor self, float eps) -> Tensor
   dispatch:
     CPU: log_softmax_backward_cpu
     CUDA: log_softmax_backward_cuda
@@ -3277,19 +3277,19 @@
   variants: function, method
 
 # softmax allows positional dtype, unlike most operators, because kwonly is BC-breaking when loading jit models.
-- func: softmax.int(Tensor self, int dim, ScalarType? dtype=None) -> Tensor
+- func: softmax.int(Tensor self, int dim, ScalarType? dtype=None, float eps=0.0) -> Tensor
   variants: function, method
 
-- func: softmax.Dimname(Tensor self, Dimname dim, *, ScalarType? dtype=None) -> Tensor
+- func: softmax.Dimname(Tensor self, Dimname dim, *, ScalarType? dtype=None, float eps=0.0) -> Tensor
   variants: function, method
 
-- func: _softmax(Tensor self, int dim, bool half_to_float) -> Tensor
+- func: _softmax(Tensor self, int dim, bool half_to_float, float eps=0.0) -> Tensor
   dispatch:
     CPU: softmax_cpu
     CUDA: softmax_cuda
     MkldnnCPU: mkldnn_softmax
 
-- func: _softmax_backward_data(Tensor grad_output, Tensor output, int dim, Tensor self) -> Tensor
+- func: _softmax_backward_data(Tensor grad_output, Tensor output, int dim, Tensor self, float eps) -> Tensor
   dispatch:
     CPU: softmax_backward_cpu
     CUDA: softmax_backward_cuda
@@ -3900,34 +3900,34 @@
     SparseCPU: _sparse_sum_backward_cpu
     SparseCUDA: _sparse_sum_backward_cuda
 
-- func: _sparse_softmax.int(Tensor self, int dim, ScalarType? dtype=None) -> Tensor
+- func: _sparse_softmax.int(Tensor self, int dim, ScalarType? dtype=None, float eps=0.0) -> Tensor
   variants: function
 
-- func: _sparse_softmax.Dimname(Tensor self, Dimname dim, *, ScalarType? dtype=None) -> Tensor
+- func: _sparse_softmax.Dimname(Tensor self, Dimname dim, *, ScalarType? dtype=None, float eps=0.0) -> Tensor
   variants: function
 
-- func: _sparse_softmax(Tensor self, int dim, bool half_to_float) -> Tensor
+- func: _sparse_softmax(Tensor self, int dim, bool half_to_float, float eps=0.0) -> Tensor
   dispatch:
     SparseCPU: softmax_sparse_cpu
     SparseCUDA: softmax_sparse_cuda
 
-- func: _sparse_softmax_backward_data(Tensor grad_output, Tensor output, int dim, Tensor self) -> Tensor
+- func: _sparse_softmax_backward_data(Tensor grad_output, Tensor output, int dim, Tensor self, float eps) -> Tensor
   dispatch:
     SparseCPU: softmax_backward_sparse_cpu
     SparseCUDA: softmax_backward_sparse_cuda
 
-- func: _sparse_log_softmax.int(Tensor self, int dim, ScalarType? dtype=None) -> Tensor
+- func: _sparse_log_softmax.int(Tensor self, int dim, ScalarType? dtype=None, float eps=0.0) -> Tensor
   variants: function
 
-- func: _sparse_log_softmax.Dimname(Tensor self, Dimname dim, *, ScalarType? dtype=None) -> Tensor
+- func: _sparse_log_softmax.Dimname(Tensor self, Dimname dim, *, ScalarType? dtype=None, float eps=0.0) -> Tensor
   variants: function
 
-- func: _sparse_log_softmax(Tensor self, int dim, bool half_to_float) -> Tensor
+- func: _sparse_log_softmax(Tensor self, int dim, bool half_to_float, float eps=0.0) -> Tensor
   dispatch:
     SparseCPU: log_softmax_sparse_cpu
     SparseCUDA: log_softmax_sparse_cuda
 
-- func: _sparse_log_softmax_backward_data(Tensor grad_output, Tensor output, int dim, Tensor self) -> Tensor
+- func: _sparse_log_softmax_backward_data(Tensor grad_output, Tensor output, int dim, Tensor self, float eps) -> Tensor
   dispatch:
     SparseCPU: log_softmax_backward_sparse_cpu
     SparseCUDA: log_softmax_backward_sparse_cuda

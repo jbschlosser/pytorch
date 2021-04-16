@@ -76,7 +76,8 @@ __global__ void cuda_sparse_coo_softmax_kernel(
     int64_t nvalues,
     scalar_t* mx_rows,
     PackedTensorAccessor<scalar_t, 2> input_values_acc,
-    PackedTensorAccessor<scalar_t, 2> output_values_acc) {
+    PackedTensorAccessor<scalar_t, 2> output_values_acc,
+    scalar_t eps) {
   /*
     See ATen/native/sparse/Softmax.cpp:cpu_sparse_coo_softmax for the CPU
     implementation of the sparse softmax algorithm that this implementation is
@@ -138,7 +139,8 @@ __global__ void cuda_sparse_coo_softmax_backward_kernel(
     int64_t* lower_bound_values,
     PackedTensorAccessor<scalar_t, 2> values_accessor,
     PackedTensorAccessor<scalar_t, 2> out_values_accessor,
-    PackedTensorAccessor<scalar_t, 2> grad_values_accessor) {
+    PackedTensorAccessor<scalar_t, 2> grad_values_accessor,
+    scalar_t eps) {
   /*
     See ATen/native/sparse/Softmax.cpp:cpu_sparse_coo_softmax_backward for
     the CPU implementation of the sparse softmax backward algorithm that this
@@ -364,7 +366,8 @@ template <typename scalar_t, bool LogSoftMax>
 void cuda_sparse_coo_softmax(
     Tensor& output,
     const Tensor& input,
-    const int64_t dim) {
+    const int64_t dim,
+    const scalar_t eps) {
   /*
     See ATen/native/sparse/Softmax.cpp:cpu_sparse_coo_softmax for the CPU
     implementation of the sparse softmax algorithm that this implementation is
@@ -381,10 +384,10 @@ void cuda_sparse_coo_softmax(
 
   if (dim >= sparse_dim) {
     if (LogSoftMax) {
-      auto new_values = log_softmax_cuda(values, dim - sparse_dim + 1, false);
+      auto new_values = log_softmax_cuda(values, dim - sparse_dim + 1, false, eps);
       out_values.set_(new_values);
     } else {
-      auto new_values = softmax_cuda(values, dim - sparse_dim + 1, false);
+      auto new_values = softmax_cuda(values, dim - sparse_dim + 1, false, eps);
       out_values.set_(new_values);
     }
     return;
@@ -426,7 +429,8 @@ void cuda_sparse_coo_softmax(
           nvalues,
           mx_buffer.data_ptr<scalar_t>(),
           values_accessor,
-          out_values_accessor);
+          out_values_accessor,
+          eps);
   C10_CUDA_KERNEL_LAUNCH_CHECK();
 }
 
@@ -435,7 +439,8 @@ void cuda_sparse_coo_softmax_backward(
     Tensor& grad_input,
     const Tensor& grad,
     const Tensor& output,
-    const int64_t dim) {
+    const int64_t dim,
+    const scalar_t eps) {
   /*
     See ATen/native/sparse/Softmax.cpp:cpu_sparse_coo_softmax_backward for
     the CPU implementation of the sparse softmax backward algorithm that this
@@ -469,10 +474,10 @@ void cuda_sparse_coo_softmax_backward(
     if (at::native::cuda_equal(out_offsets, grad_offsets) == true) {
       Tensor unused = at::native::empty_like(grad_values);
       if (LogSoftMax) {
-        auto r = log_softmax_backward_cuda(grad_values, out_values, dim - sparse_dim + 1, unused);
+        auto r = log_softmax_backward_cuda(grad_values, out_values, dim - sparse_dim + 1, unused, eps);
         values.set_(r);
       } else {
-        auto r = softmax_backward_cuda(grad_values, out_values, dim - sparse_dim + 1, unused);
+        auto r = softmax_backward_cuda(grad_values, out_values, dim - sparse_dim + 1, unused, eps);
         values.set_(r);
       }
     } else {
@@ -496,11 +501,11 @@ void cuda_sparse_coo_softmax_backward(
         if (j < grad_nnz && out_offsets_accessor[i] == grad_offsets_accessor[j]) {
           if (LogSoftMax) {
             auto r = log_softmax_backward_cuda(
-                grad_values[j], out_values[i], dim - sparse_dim, unused);
+                grad_values[j], out_values[i], dim - sparse_dim, unused, eps);
             values[i].copy_(r);
           } else {
             auto r = softmax_backward_cuda(
-                grad_values[j], out_values[i], dim - sparse_dim, unused);
+                grad_values[j], out_values[i], dim - sparse_dim, unused, eps);
             values[i].copy_(r);
           }
         }
@@ -560,7 +565,8 @@ void cuda_sparse_coo_softmax_backward(
           lower_bound_values.data_ptr<int64_t>(),
           values_accessor,
           out_values_accessor,
-          grad_values_accessor);
+          grad_values_accessor,
+          eps);
   C10_CUDA_KERNEL_LAUNCH_CHECK();
 }
 
@@ -569,7 +575,8 @@ void cuda_sparse_coo_softmax_backward(
 Tensor softmax_sparse_cuda(
     const Tensor& input_,
     const int64_t dim,
-    const bool half_to_float) {
+    const bool half_to_float,
+    const double eps) {
   Tensor input, output;
   std::tie(input, output) = softmax_sparse_input_preprocessing(
       input_, dim, half_to_float, "softmax");
@@ -577,7 +584,7 @@ Tensor softmax_sparse_cuda(
     return output;
   }
   AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "softmax", [&] {
-    cuda_sparse_coo_softmax<scalar_t, false>(output, input, dim);
+    cuda_sparse_coo_softmax<scalar_t, false>(output, input, dim, static_cast<scalar_t>(eps));
   });
   return output;
 }
@@ -585,7 +592,8 @@ Tensor softmax_sparse_cuda(
 Tensor log_softmax_sparse_cuda(
     const Tensor& input_,
     const int64_t dim,
-    const bool half_to_float) {
+    const bool half_to_float,
+    const double eps) {
   Tensor input, output;
   std::tie(input, output) = softmax_sparse_input_preprocessing(
       input_, dim, half_to_float, "log_softmax");
@@ -593,7 +601,7 @@ Tensor log_softmax_sparse_cuda(
     return output;
   }
   AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "log_softmax", [&] {
-    cuda_sparse_coo_softmax<scalar_t, true>(output, input, dim);
+    cuda_sparse_coo_softmax<scalar_t, true>(output, input, dim, static_cast<scalar_t>(eps));
   });
   return output;
 }
@@ -602,7 +610,8 @@ Tensor softmax_backward_sparse_cuda(
     const Tensor& grad_,
     const Tensor& output_,
     int64_t dim_,
-    const Tensor& input_) {
+    const Tensor& input_,
+    const double eps) {
   Tensor grad_input, grad, output;
   std::tie(grad_input, grad, output) =
       softmax_backward_sparse_input_preprocessing(
@@ -612,7 +621,7 @@ Tensor softmax_backward_sparse_cuda(
   }
   AT_DISPATCH_FLOATING_TYPES(grad.scalar_type(), "softmax_backward", [&] {
     cuda_sparse_coo_softmax_backward<scalar_t, false>(
-        grad_input, grad, output, dim_);
+        grad_input, grad, output, dim_, static_cast<scalar_t>(eps));
   });
   return grad_input;
 }
@@ -621,7 +630,8 @@ Tensor log_softmax_backward_sparse_cuda(
     const Tensor& grad_,
     const Tensor& output_,
     int64_t dim_,
-    const Tensor& input_) {
+    const Tensor& input_,
+    const double eps) {
   Tensor grad_input, grad, output;
   std::tie(grad_input, grad, output) =
       softmax_backward_sparse_input_preprocessing(
@@ -632,7 +642,7 @@ Tensor log_softmax_backward_sparse_cuda(
 
   AT_DISPATCH_FLOATING_TYPES(grad.scalar_type(), "log_softmax_backward", [&] {
     cuda_sparse_coo_softmax_backward<scalar_t, true>(
-        grad_input, grad, output, dim_);
+        grad_input, grad, output, dim_, static_cast<scalar_t>(eps));
   });
   return grad_input;
 }

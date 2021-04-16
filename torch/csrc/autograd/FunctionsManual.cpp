@@ -1156,7 +1156,8 @@ Tensor log_sigmoid_double_backward(const Tensor & grad, const Tensor & input) {
   return grad * (z - 1) * z;
 }
 
-Tensor softmax_double_backward(const Tensor & grad, const Tensor & grad_output, int dim, const Tensor & output) {
+Tensor softmax_double_backward(const Tensor & grad, const Tensor & grad_output, int dim, const Tensor & output,
+    const double eps) {
   auto gO = grad_output;
   auto ggI = grad;
 
@@ -1173,7 +1174,8 @@ Tensor softmax_double_backward(const Tensor & grad, const Tensor & grad_output, 
   return gI_t0 - gI_t1 - gI_t2 + gI_t3;
 }
 
-Tensor log_softmax_double_backward(const Tensor & grad, const Tensor & grad_output, int dim, const Tensor & output) {
+Tensor log_softmax_double_backward(const Tensor & grad, const Tensor & grad_output, int dim, const Tensor & output,
+    const double eps) {
   auto z = output.exp();
   return z * grad_output.sum(dim, true) * ((grad * z).sum(dim, true) - grad);
 }

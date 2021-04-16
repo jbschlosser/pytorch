@@ -27,7 +27,8 @@ inline void _vec_log_softmax_lastdim(
     scalar_t* input_data_base,
     scalar_t* output_data_base,
     int64_t outer_size,
-    int64_t dim_size) {
+    int64_t dim_size,
+    double eps) {
   using Vec = vec256::Vec256<scalar_t>;
   static constexpr int64_t CHUNK_SIZE = (128 / sizeof(scalar_t)) * Vec::size();
   int64_t grain_size = internal::GRAIN_SIZE / (16 * dim_size * CHUNK_SIZE);
@@ -61,8 +62,9 @@ inline void _vec_log_softmax_lastdim(
                 [max_input](Vec x) { return (x - Vec(max_input)).exp(); },
                 [](Vec x, Vec y) { return x + y; },
                 input_data,
-                dim_size);
+                dim_size) + static_cast<scalar_t>(eps);
           }
+
           // See [Note AVX-SSE transitions] for why this should call the
           // vectorized version (aside from perf improvements).
           vec256::map(
@@ -97,7 +99,8 @@ inline void _vec_softmax_lastdim(
     scalar_t* input_data_base,
     scalar_t* output_data_base,
     int64_t outer_size,
-    int64_t dim_size) {
+    int64_t dim_size,
+    double eps) {
   using Vec = vec256::Vec256<scalar_t>;
   int64_t grain_size = internal::GRAIN_SIZE / (16 * dim_size);
   if (grain_size < 1)
@@ -122,7 +125,7 @@ inline void _vec_softmax_lastdim(
               dim_size);
           scalar_t tmp_sum = vec256::reduce_all<scalar_t>(
               [](Vec x, Vec y) { return x + y; }, output_data, dim_size);
-          tmp_sum = 1 / tmp_sum;
+          tmp_sum = 1 / (tmp_sum + static_cast<scalar_t>(eps));
           vec256::map(
               [tmp_sum](Vec x) { return x * Vec(tmp_sum); },
               output_data,
@@ -138,7 +141,8 @@ inline void _vec_host_softmax_backward_lastdim(
     scalar_t* grad_data_base,
     scalar_t* output_data_base,
     int64_t outer_size,
-    int64_t dim_size) {
+    int64_t dim_size,
+    double eps) {
   using Vec = vec256::Vec256<scalar_t>;
   int64_t grain_size = internal::GRAIN_SIZE / (16 * dim_size);
   if (grain_size < 1)
@@ -186,7 +190,7 @@ inline void _vec_host_softmax_backward_lastdim(
 
 template <typename scalar_t, bool LogSoftMax>
 struct vec_host_softmax_lastdim {
-  static void apply(Tensor& output, const Tensor& input) {
+  static void apply(Tensor& output, const Tensor& input, const double eps) {
     int64_t outer_size = 1;
     int64_t dim_size = input.size(input.ndimension() - 1);
     for (int64_t i = 0; i < input.ndimension() - 1; ++i)
@@ -195,10 +199,10 @@ struct vec_host_softmax_lastdim {
     scalar_t* output_data_base = output.data_ptr<scalar_t>();
     if (LogSoftMax) {
       _vec_log_softmax_lastdim(
-          input_data_base, output_data_base, outer_size, dim_size);
+          input_data_base, output_data_base, outer_size, dim_size, eps);
     } else {
       _vec_softmax_lastdim(
-          input_data_base, output_data_base, outer_size, dim_size);
+          input_data_base, output_data_base, outer_size, dim_size, eps);
     }
   }
 };
@@ -206,7 +210,7 @@ struct vec_host_softmax_lastdim {
 template <typename scalar_t, bool LogSoftMax>
 struct vec_host_softmax_backward_lastdim {
   static void
-  apply(Tensor& grad_input, const Tensor& grad, const Tensor& output) {
+  apply(Tensor& grad_input, const Tensor& grad, const Tensor& output, const double eps) {
     int64_t outer_size = 1;
     int64_t dim_size = grad.size(grad.ndimension() - 1);
     for (int64_t i = 0; i < grad.ndimension() - 1; ++i)
@@ -219,45 +223,49 @@ struct vec_host_softmax_backward_lastdim {
         grad_data_base,
         output_data_base,
         outer_size,
-        dim_size);
+        dim_size,
+        eps);
   }
 };
 
-static void softmax_lastdim_kernel_impl(Tensor& result, const Tensor& self) {
+static void softmax_lastdim_kernel_impl(Tensor& result, const Tensor& self, const double eps) {
   AT_DISPATCH_FLOATING_TYPES(self.scalar_type(), "softmax_lastdim_kernel_impl", [&] {
-    vec_host_softmax_lastdim<scalar_t, false>::apply(result, self);
+    vec_host_softmax_lastdim<scalar_t, false>::apply(result, self, eps);
   });
 }
 
 static void log_softmax_lastdim_kernel_impl(
     Tensor& result,
-    const Tensor& self) {
+    const Tensor& self,
+    const double eps) {
   AT_DISPATCH_FLOATING_TYPES_AND(
       at::ScalarType::BFloat16, self.scalar_type(),
       "log_softmax_lastdim_kernel_impl",
-      [&] { vec_host_softmax_lastdim<scalar_t, true>::apply(result, self); });
+      [&] { vec_host_softmax_lastdim<scalar_t, true>::apply(result, self, eps); });
 }
 
 static void softmax_backward_lastdim_kernel_impl(
     Tensor& grad_input,
     const Tensor& grad,
-    const Tensor& output) {
+    const Tensor& output,
+    const double eps) {
   AT_DISPATCH_FLOATING_TYPES(
       grad.scalar_type(), "softmax_backward_lastdim_kernel_impl", [&] {
         vec_host_softmax_backward_lastdim<scalar_t, false>::apply(
-            grad_input, grad, output);
+            grad_input, grad, output, eps);
       });
 }
 
 static void log_softmax_backward_lastdim_kernel_impl(
     Tensor& grad_input,
     const Tensor& grad,
-    const Tensor& output) {
+    const Tensor& output,
+    const double eps) {
   AT_DISPATCH_FLOATING_TYPES_AND(
       at::ScalarType::BFloat16, grad.scalar_type(),
       "log_softmax_backward_lastdim_kernel_impl", [&] {
         vec_host_softmax_backward_lastdim<scalar_t, true>::apply(
-            grad_input, grad, output);
+            grad_input, grad, output, eps);
       });
 }
 

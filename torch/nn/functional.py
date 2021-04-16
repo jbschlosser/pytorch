@@ -1659,12 +1659,13 @@ def softmin(input: Tensor, dim: Optional[int] = None, _stacklevel: int = 3, dtyp
     return ret
 
 
-def softmax(input: Tensor, dim: Optional[int] = None, _stacklevel: int = 3, dtype: Optional[int] = None) -> Tensor:
+def softmax(input: Tensor, dim: Optional[int] = None, _stacklevel: int = 3, dtype: Optional[int] = None,
+            eps: float = 0.0) -> Tensor:
     r"""Applies a softmax function.
 
     Softmax is defined as:
 
-    :math:`\text{Softmax}(x_{i}) = \frac{\exp(x_i)}{\sum_j \exp(x_j)}`
+    :math:`\text{Softmax}(x_{i}) = \frac{\exp(x_i)}{\sum_j \exp(x_j) + \epsilon}`
 
     It is applied to all slices along dim, and will re-scale them so that the elements
     lie in the range `[0, 1]` and sum to 1.
@@ -1677,6 +1678,8 @@ def softmax(input: Tensor, dim: Optional[int] = None, _stacklevel: int = 3, dtyp
         dtype (:class:`torch.dtype`, optional): the desired data type of returned tensor.
           If specified, the input tensor is casted to :attr:`dtype` before the operation
           is performed. This is useful for preventing data type overflows. Default: None.
+        eps (float): A small value to add to the denominator of the computation. This can be
+          useful to avoid NaNs for the all ``-inf`` input case. Default: 0.0
 
     .. note::
         This function doesn't work directly with NLLLoss,
@@ -1685,13 +1688,13 @@ def softmax(input: Tensor, dim: Optional[int] = None, _stacklevel: int = 3, dtyp
 
     """
     if has_torch_function_unary(input):
-        return handle_torch_function(softmax, (input,), input, dim=dim, _stacklevel=_stacklevel, dtype=dtype)
+        return handle_torch_function(softmax, (input,), input, dim=dim, _stacklevel=_stacklevel, dtype=dtype, eps=eps)
     if dim is None:
         dim = _get_softmax_dim("softmax", input.dim(), _stacklevel)
     if dtype is None:
-        ret = input.softmax(dim)
+        ret = input.softmax(dim, eps=eps)
     else:
-        ret = input.softmax(dim, dtype=dtype)
+        ret = input.softmax(dim, dtype=dtype, eps=eps)
     return ret
 
 
@@ -1757,7 +1760,8 @@ def gumbel_softmax(logits: Tensor, tau: float = 1, hard: bool = False, eps: floa
     return ret
 
 
-def log_softmax(input: Tensor, dim: Optional[int] = None, _stacklevel: int = 3, dtype: Optional[int] = None) -> Tensor:
+def log_softmax(input: Tensor, dim: Optional[int] = None, _stacklevel: int = 3, dtype: Optional[int] = None,
+                eps: float = 0.0) -> Tensor:
     r"""Applies a softmax followed by a logarithm.
 
     While mathematically equivalent to log(softmax(x)), doing these two
@@ -1774,13 +1778,14 @@ def log_softmax(input: Tensor, dim: Optional[int] = None, _stacklevel: int = 3, 
           is performed. This is useful for preventing data type overflows. Default: None.
     """
     if has_torch_function_unary(input):
-        return handle_torch_function(log_softmax, (input,), input, dim=dim, _stacklevel=_stacklevel, dtype=dtype)
+        return handle_torch_function(log_softmax, (input,), input, dim=dim, _stacklevel=_stacklevel, dtype=dtype,
+                                     eps=eps)
     if dim is None:
         dim = _get_softmax_dim("log_softmax", input.dim(), _stacklevel)
     if dtype is None:
-        ret = input.log_softmax(dim)
+        ret = input.log_softmax(dim, eps=eps)
     else:
-        ret = input.log_softmax(dim, dtype=dtype)
+        ret = input.log_softmax(dim, dtype=dtype, eps=eps)
     return ret
 
 

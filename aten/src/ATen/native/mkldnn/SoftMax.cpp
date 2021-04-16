@@ -10,7 +10,8 @@ namespace native {
 Tensor mkldnn_softmax(
     const Tensor& self,
     const int64_t dim,
-    const bool half_to_float) {
+    const bool half_to_float,
+    const double eps) {
   TORCH_CHECK(false, "mkldnn_softmax: ATen not compiled with MKLDNN support");
 }
 
@@ -27,10 +28,14 @@ namespace native {
 Tensor mkldnn_softmax(
     const Tensor& self,
     const int64_t dim,
-    const bool half_to_float) {
+    const bool half_to_float,
+    const double eps) {
   TORCH_CHECK(
       !half_to_float,
       "softmax with half to float conversion is not supported on Mkldnn");
+  TORCH_CHECK(
+      eps == 0.0,
+      "eps != 0.0 is not supported on Mkldnn");
   const int64_t wrapped_dim = maybe_wrap_dim(dim, self.dim());
   ideep::tensor& x = itensor_from_mkldnn(self);
   ideep::tensor y;

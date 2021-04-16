@@ -140,7 +140,7 @@ std::vector<std::vector<int64_t>> get_pools(const Tensor& indices, const IntArra
 }
 
 template <typename scalar_t, bool LogSoftMax>
-void cpu_sparse_coo_softmax(Tensor output, const Tensor& input, const int64_t dim) {
+void cpu_sparse_coo_softmax(Tensor output, const Tensor& input, const int64_t dim, const double eps) {
   /*
     See test/test_sparse.py:test_softmax:sparse_softmax for the Python
     prototype of the sparse softmax algorithm that this implementation
@@ -291,10 +291,10 @@ void cpu_sparse_coo_softmax(Tensor output, const Tensor& input, const int64_t di
 
   if (dim >= sparse_dim) {
     if (LogSoftMax) {
-      auto new_values = log_softmax_cpu(values, dim - sparse_dim + 1, false);
+      auto new_values = log_softmax_cpu(values, dim - sparse_dim + 1, false, eps);
       out_values.set_(new_values);
     } else {
-      auto new_values = softmax_cpu(values, dim - sparse_dim + 1, false);
+      auto new_values = softmax_cpu(values, dim - sparse_dim + 1, false, eps);
       out_values.set_(new_values);
     }
     return;
@@ -350,9 +350,9 @@ void cpu_sparse_coo_softmax(Tensor output, const Tensor& input, const int64_t di
 
         for (int64_t j=0; j < nvalues; j++) {
           if (LogSoftMax) {
-            mx_row[j] += std::log(exp_sums_row[j]);
+            mx_row[j] += std::log(exp_sums_row[j] + static_cast<scalar_t>(eps));
           } else {
-            exp_sums_row[j] = 1.0 / exp_sums_row[j];
+            exp_sums_row[j] = 1.0 / (exp_sums_row[j] + static_cast<scalar_t>(eps));
           }
         }
 
@@ -373,7 +373,8 @@ void cpu_sparse_coo_softmax(Tensor output, const Tensor& input, const int64_t di
 }
 
 template <typename scalar_t, bool LogSoftMax>
-void cpu_sparse_coo_softmax_backward(Tensor& grad_input, const Tensor& grad, const Tensor& output, const int64_t dim) {
+void cpu_sparse_coo_softmax_backward(Tensor& grad_input, const Tensor& grad, const Tensor& output, const int64_t dim,
+    const double eps) {
   /*
 
     If LogSoftMax == false, then
@@ -415,10 +416,10 @@ void cpu_sparse_coo_softmax_backward(Tensor& grad_input, const Tensor& grad, con
     Tensor unused;
     if (out_offsets == grad_offsets) {
       if (LogSoftMax) {
-        auto r = log_softmax_backward_cpu(grad_values, out_values, dim - sparse_dim + 1, unused);
+        auto r = log_softmax_backward_cpu(grad_values, out_values, dim - sparse_dim + 1, unused, eps);
         values.set_(r);
       } else {
-        auto r = softmax_backward_cpu(grad_values, out_values, dim - sparse_dim + 1, unused);
+        auto r = softmax_backward_cpu(grad_values, out_values, dim - sparse_dim + 1, unused, eps);
         values.set_(r);
       }
     } else {
@@ -427,10 +428,10 @@ void cpu_sparse_coo_softmax_backward(Tensor& grad_input, const Tensor& grad, con
         auto j = low - grad_offsets.begin();
         if (j < grad_nnz && out_offsets[i] == grad_offsets[j]) {
           if (LogSoftMax) {
-            auto r = log_softmax_backward_cpu(grad_values[j], out_values[i], dim - sparse_dim, unused);
+            auto r = log_softmax_backward_cpu(grad_values[j], out_values[i], dim - sparse_dim, unused, eps);
             values[i].copy_(r);
           } else {
-            auto r = softmax_backward_cpu(grad_values[j], out_values[i], dim - sparse_dim, unused);
+            auto r = softmax_backward_cpu(grad_values[j], out_values[i], dim - sparse_dim, unused, eps);
             values[i].copy_(r);
           }
         }
@@ -519,7 +520,8 @@ void cpu_sparse_coo_softmax_backward(Tensor& grad_input, const Tensor& grad, con
 Tensor softmax_sparse_cpu(
     const Tensor& input_,
     const int64_t dim,
-    const bool half_to_float) {
+    const bool half_to_float,
+    const double eps) {
   Tensor input, output;
   std::tie(input, output) = softmax_sparse_input_preprocessing(
       input_, dim, half_to_float, "softmax");
@@ -527,7 +529,7 @@ Tensor softmax_sparse_cpu(
     return output;
   }
   AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "softmax", [&] {
-    cpu_sparse_coo_softmax<scalar_t, false>(output, input, dim);
+    cpu_sparse_coo_softmax<scalar_t, false>(output, input, dim, eps);
   });
   return output;
 }
@@ -535,7 +537,8 @@ Tensor softmax_sparse_cpu(
 Tensor log_softmax_sparse_cpu(
     const Tensor& input_,
     const int64_t dim,
-    const bool half_to_float) {
+    const bool half_to_float,
+    const double eps) {
   Tensor input, output;
   std::tie(input, output) = softmax_sparse_input_preprocessing(
       input_, dim, half_to_float, "log_softmax");
@@ -543,7 +546,7 @@ Tensor log_softmax_sparse_cpu(
     return output;
   }
   AT_DISPATCH_FLOATING_TYPES(input.scalar_type(), "log_softmax", [&] {
-    cpu_sparse_coo_softmax<scalar_t, true>(output, input, dim);
+    cpu_sparse_coo_softmax<scalar_t, true>(output, input, dim, eps);
   });
   return output;
 }
@@ -552,7 +555,8 @@ Tensor softmax_backward_sparse_cpu(
     const Tensor& grad_,
     const Tensor& output_,
     int64_t dim_,
-    const Tensor& input_) {
+    const Tensor& input_,
+    const double eps) {
   Tensor grad_input, grad, output;
   std::tie(grad_input, grad, output) =
       softmax_backward_sparse_input_preprocessing(
@@ -562,7 +566,7 @@ Tensor softmax_backward_sparse_cpu(
   }
   AT_DISPATCH_FLOATING_TYPES(grad.scalar_type(), "softmax_backward", [&] {
     cpu_sparse_coo_softmax_backward<scalar_t, false>(
-        grad_input, grad, output, dim_);
+        grad_input, grad, output, dim_, eps);
   });
   return grad_input;
 }
@@ -571,7 +575,8 @@ Tensor log_softmax_backward_sparse_cpu(
     const Tensor& grad_,
     const Tensor& output_,
     int64_t dim_,
-    const Tensor& input_) {
+    const Tensor& input_,
+    const double eps) {
   Tensor grad_input, grad, output;
   std::tie(grad_input, grad, output) =
       softmax_backward_sparse_input_preprocessing(
@@ -581,63 +586,64 @@ Tensor log_softmax_backward_sparse_cpu(
   }
   AT_DISPATCH_FLOATING_TYPES(grad.scalar_type(), "log_softmax_backward", [&] {
     cpu_sparse_coo_softmax_backward<scalar_t, true>(
-        grad_input, grad, output, dim_);
+        grad_input, grad, output, dim_, eps);
   });
   return grad_input;
 }
 
-Tensor _sparse_softmax(const Tensor& input_, const int64_t dim_) {
+Tensor _sparse_softmax(const Tensor& input_, const int64_t dim_, const double eps) {
   auto result = [&]() {
     NoNamesGuard guard;
-    return at::_sparse_softmax(input_, dim_, false);
+    return at::_sparse_softmax(input_, dim_, false, eps);
   }();
   namedinference::propagate_names(result, input_);
   return result;
 }
 
-Tensor _sparse_softmax(const Tensor& input_, const int64_t dim_, c10::optional<ScalarType> dtype) {
+Tensor _sparse_softmax(const Tensor& input_, const int64_t dim_, c10::optional<ScalarType> dtype, const double eps) {
   auto result = [&]() {
     NoNamesGuard guard;
     if (input_.is_cuda() && input_.scalar_type() == ScalarType::Half && dtype == ScalarType::Float){
-        return at::_sparse_softmax(input_, dim_, true);
+        return at::_sparse_softmax(input_, dim_, true, eps);
     } else {
         Tensor converted = dtype.has_value() ? input_.toType(dtype.value()) : input_;
-        return at::_sparse_softmax(converted, dim_, false);
+        return at::_sparse_softmax(converted, dim_, false, eps);
     }
   }();
   namedinference::propagate_names(result, input_);
   return result;
 }
 
-Tensor _sparse_softmax(const Tensor& self, Dimname dim, optional<ScalarType> dtype) {
-  return at::_sparse_softmax(self, dimname_to_position(self, dim), dtype);
+Tensor _sparse_softmax(const Tensor& self, Dimname dim, optional<ScalarType> dtype, const double eps) {
+  return at::_sparse_softmax(self, dimname_to_position(self, dim), dtype, eps);
 }
 
-Tensor _sparse_log_softmax(const Tensor& input_, const int64_t dim_) {
+Tensor _sparse_log_softmax(const Tensor& input_, const int64_t dim_, const double eps) {
   auto result = [&]() {
     NoNamesGuard guard;
-    return at::_sparse_log_softmax(input_, dim_, false);
+    return at::_sparse_log_softmax(input_, dim_, false, eps);
   }();
   namedinference::propagate_names(result, input_);
   return result;
 }
 
-Tensor _sparse_log_softmax(const Tensor& input_, const int64_t dim_, c10::optional<ScalarType> dtype) {
+Tensor _sparse_log_softmax(const Tensor& input_, const int64_t dim_, c10::optional<ScalarType> dtype,
+    const double eps) {
   auto result = [&]() {
     NoNamesGuard guard;
     if (input_.is_cuda() && input_.scalar_type() == ScalarType::Half && dtype == ScalarType::Float){
-        return at::_sparse_log_softmax(input_, dim_, true);
+        return at::_sparse_log_softmax(input_, dim_, true, eps);
     } else {
         Tensor converted = dtype.has_value() ? input_.toType(dtype.value()) : input_;
-        return at::_sparse_log_softmax(converted, dim_, false);
+        return at::_sparse_log_softmax(converted, dim_, false, eps);
     }
   }();
   namedinference::propagate_names(result, input_);
   return result;
 }
 
-Tensor _sparse_log_softmax(const Tensor& self, Dimname dim, optional<ScalarType> dtype) {
-  return at::_sparse_log_softmax(self, dimname_to_position(self, dim), dtype);
+Tensor _sparse_log_softmax(const Tensor& self, Dimname dim, optional<ScalarType> dtype, const double eps) {
+  return at::_sparse_log_softmax(self, dimname_to_position(self, dim), dtype, eps);
 }
 
 }

@@ -159,7 +159,7 @@ def sum(input: Tensor, dim: DimOrDims = None,
             return torch._sparse_sum(input, dtype=dtype)
 
 
-def softmax(input: Tensor, dim: int, dtype: Optional[DType] = None) -> Tensor:
+def softmax(input: Tensor, dim: int, dtype: Optional[DType] = None, eps: float = 0.0) -> Tensor:
     r"""Applies a softmax function.
 
     Softmax is defined as:
@@ -182,11 +182,13 @@ def softmax(input: Tensor, dim: int, dtype: Optional[DType] = None) -> Tensor:
           casted to :attr:`dtype` before the operation is
           performed. This is useful for preventing data type
           overflows. Default: None
+        eps (float): A small value to add to the denominator of the computation. This can be
+          useful to avoid NaNs for the all ``-inf`` input case. Default: 0.0
     """
-    return torch._sparse_softmax(input, dim, dtype=dtype)
+    return torch._sparse_softmax(input, dim, dtype=dtype, eps=eps)
 
 
-def log_softmax(input: Tensor, dim: int, dtype: Optional[DType] = None) -> Tensor:
+def log_softmax(input: Tensor, dim: int, dtype: Optional[DType] = None, eps: float = 0.0) -> Tensor:
     r"""Applies a softmax function followed by logarithm.
 
     See :class:`~torch.sparse.softmax` for more details.
@@ -199,5 +201,7 @@ def log_softmax(input: Tensor, dim: int, dtype: Optional[DType] = None) -> Tenso
           casted to :attr:`dtype` before the operation is
           performed. This is useful for preventing data type
           overflows. Default: None
+        eps (float): A small value to add to the denominator of the computation. This can be
+          useful to avoid NaNs for the all ``-inf`` input case. Default: 0.0
     """
-    return torch._sparse_log_softmax(input, dim, dtype=dtype)
+    return torch._sparse_log_softmax(input, dim, dtype=dtype, eps=eps)

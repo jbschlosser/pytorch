@@ -1202,23 +1202,26 @@ class Softmax(Module):
         >>> output = m(input)
 
     """
-    __constants__ = ['dim']
+    __constants__ = ['dim', 'eps']
     dim: Optional[int]
 
-    def __init__(self, dim: Optional[int] = None) -> None:
+    def __init__(self, dim: Optional[int] = None, eps: float = 0.0) -> None:
         super(Softmax, self).__init__()
         self.dim = dim
+        self.eps = eps
 
     def __setstate__(self, state):
         self.__dict__.update(state)
         if not hasattr(self, 'dim'):
             self.dim = None
+        if not hasattr(self, 'eps'):
+            self.eps = 0.0
 
     def forward(self, input: Tensor) -> Tensor:
-        return F.softmax(input, self.dim, _stacklevel=5)
+        return F.softmax(input, self.dim, _stacklevel=5, eps=self.eps)
 
     def extra_repr(self) -> str:
-        return 'dim={dim}'.format(dim=self.dim)
+        return 'dim={dim}, eps={eps}'.format(dim=self.dim, eps=self.eps)
 
 
 class Softmax2d(Module):
@@ -1273,20 +1276,23 @@ class LogSoftmax(Module):
         >>> input = torch.randn(2, 3)
         >>> output = m(input)
     """
-    __constants__ = ['dim']
+    __constants__ = ['dim', 'eps']
     dim: Optional[int]
 
-    def __init__(self, dim: Optional[int] = None) -> None:
+    def __init__(self, dim: Optional[int] = None, eps: float = 0.0) -> None:
         super(LogSoftmax, self).__init__()
         self.dim = dim
+        self.eps = eps
 
     def __setstate__(self, state):
         self.__dict__.update(state)
         if not hasattr(self, 'dim'):
             self.dim = None
+        if not hasattr(self, 'eps'):
+            self.eps = 0.0
 
     def forward(self, input: Tensor) -> Tensor:
-        return F.log_softmax(input, self.dim, _stacklevel=5)
+        return F.log_softmax(input, self.dim, _stacklevel=5, eps=eps)
 
     def extra_repr(self):
-        return 'dim={dim}'.format(dim=self.dim)
+        return 'dim={dim}, eps={eps}'.format(dim=self.dim, eps=self.eps)
