@@ -1246,9 +1246,9 @@ class Softmax2d(Module):
         >>> output = m(input)
     """
 
-    def forward(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor, eps: float = 0.0) -> Tensor:
         assert input.dim() == 4, 'Softmax2d requires a 4D tensor as input'
-        return F.softmax(input, 1, _stacklevel=5)
+        return F.softmax(input, 1, _stacklevel=5, eps=eps)
 
 
 class LogSoftmax(Module):
@@ -1292,7 +1292,7 @@ class LogSoftmax(Module):
             self.eps = 0.0
 
     def forward(self, input: Tensor) -> Tensor:
-        return F.log_softmax(input, self.dim, _stacklevel=5, eps=eps)
+        return F.log_softmax(input, self.dim, _stacklevel=5, eps=self.eps)
 
     def extra_repr(self):
         return 'dim={dim}, eps={eps}'.format(dim=self.dim, eps=self.eps)
