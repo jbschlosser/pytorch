@@ -69,7 +69,7 @@ void host_softmax_backward(
     const Tensor& grad,
     const Tensor& output,
     int64_t dim,
-    const double eps) {
+    const scalar_t eps) {
 
   int64_t outer_size = 1;
   int64_t dim_size = grad.size(dim);
@@ -211,7 +211,7 @@ Tensor softmax_backward_cpu(
     softmax_backward_lastdim_kernel(kCPU, grad_input, grad, output, eps);
   } else {
     AT_DISPATCH_FLOATING_TYPES(grad.scalar_type(), "softmax_backward", [&] {
-      host_softmax_backward<scalar_t, false>(grad_input, grad, output, dim, eps);
+      host_softmax_backward<scalar_t, false>(grad_input, grad, output, dim, static_cast<scalar_t>(eps));
     });
   }
   return grad_input;
