@@ -153,7 +153,7 @@ __global__ void softmax_warp_forward(output_t *dst, const input_t *src, int batc
 }
 
 template <typename input_t, typename output_t, typename acc_t, int log2_elements, bool is_log_softmax>
-__global__ void softmax_warp_backward(output_t *gradInput, const input_t *grad, const input_t *output, int batch_size, int stride, int element_count, acc_t eps)
+__global__ void softmax_warp_backward(output_t *gradInput, const input_t *grad, const input_t *output, int batch_size, int stride, int element_count)
 {
     // WARP_SIZE and WARP_BATCH must match the return values batches_per_warp and warp_size of method warp_softmax_backward_kernel.
     constexpr int next_power_of_two = 1 << log2_elements;
@@ -283,7 +283,7 @@ void dispatch_softmax_forward(output_t *dst, const input_t *src, int softmax_ele
 }
 
 template<typename input_t, typename output_t, typename acc_t, bool is_log_softmax>
-void dispatch_softmax_backward(output_t *grad_input, const input_t *grad, const input_t *output, int softmax_elements, int softmax_elements_stride, int batch_count, acc_t eps)
+void dispatch_softmax_backward(output_t *grad_input, const input_t *grad, const input_t *output, int softmax_elements, int softmax_elements_stride, int batch_count)
 {
     TORCH_INTERNAL_ASSERT( softmax_elements >= 0 && softmax_elements <= 1024 );
     if (softmax_elements == 0) {
@@ -311,7 +311,7 @@ void dispatch_softmax_backward(output_t *grad_input, const input_t *grad, const 
             softmax_warp_backward<input_t, output_t, acc_t, L2E, is_log_softmax> \
                 <<<blocks, threads, 0, at::cuda::getCurrentCUDAStream()>>>       \
                 (grad_input, grad, output, batch_count, softmax_elements_stride, \
-                softmax_elements, eps);                                              \
+                softmax_elements);                                              \
             C10_CUDA_KERNEL_LAUNCH_CHECK();                                      \
             break;
 

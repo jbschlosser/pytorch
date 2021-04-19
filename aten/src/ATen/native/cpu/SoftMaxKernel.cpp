@@ -141,8 +141,7 @@ inline void _vec_host_softmax_backward_lastdim(
     scalar_t* grad_data_base,
     scalar_t* output_data_base,
     int64_t outer_size,
-    int64_t dim_size,
-    scalar_t eps) {
+    int64_t dim_size) {
   using Vec = vec256::Vec256<scalar_t>;
   int64_t grain_size = internal::GRAIN_SIZE / (16 * dim_size);
   if (grain_size < 1)
@@ -210,7 +209,7 @@ struct vec_host_softmax_lastdim {
 template <typename scalar_t, bool LogSoftMax>
 struct vec_host_softmax_backward_lastdim {
   static void
-  apply(Tensor& grad_input, const Tensor& grad, const Tensor& output, const scalar_t eps) {
+  apply(Tensor& grad_input, const Tensor& grad, const Tensor& output) {
     int64_t outer_size = 1;
     int64_t dim_size = grad.size(grad.ndimension() - 1);
     for (int64_t i = 0; i < grad.ndimension() - 1; ++i)
@@ -223,8 +222,7 @@ struct vec_host_softmax_backward_lastdim {
         grad_data_base,
         output_data_base,
         outer_size,
-        dim_size,
-        eps);
+        dim_size);
   }
 };
 
@@ -247,25 +245,23 @@ static void log_softmax_lastdim_kernel_impl(
 static void softmax_backward_lastdim_kernel_impl(
     Tensor& grad_input,
     const Tensor& grad,
-    const Tensor& output,
-    const double eps) {
+    const Tensor& output) {
   AT_DISPATCH_FLOATING_TYPES(
       grad.scalar_type(), "softmax_backward_lastdim_kernel_impl", [&] {
         vec_host_softmax_backward_lastdim<scalar_t, false>::apply(
-            grad_input, grad, output, static_cast<scalar_t>(eps));
+            grad_input, grad, output);
       });
 }
 
 static void log_softmax_backward_lastdim_kernel_impl(
     Tensor& grad_input,
     const Tensor& grad,
-    const Tensor& output,
-    const double eps) {
+    const Tensor& output) {
   AT_DISPATCH_FLOATING_TYPES_AND(
       at::ScalarType::BFloat16, grad.scalar_type(),
       "log_softmax_backward_lastdim_kernel_impl", [&] {
         vec_host_softmax_backward_lastdim<scalar_t, true>::apply(
-            grad_input, grad, output, static_cast<scalar_t>(eps));
+            grad_input, grad, output);
       });
 }
 

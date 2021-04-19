@@ -68,8 +68,7 @@ void host_softmax_backward(
     Tensor& gI,
     const Tensor& grad,
     const Tensor& output,
-    int64_t dim,
-    const scalar_t eps) {
+    int64_t dim) {
 
   int64_t outer_size = 1;
   int64_t dim_size = grad.size(dim);
@@ -182,8 +181,7 @@ Tensor softmax_backward_cpu(
     const Tensor& grad_,
     const Tensor& output_,
     int64_t dim_,
-    const Tensor& input_,
-    const double eps) {
+    const Tensor& input_) {
   TensorArg grad_arg{grad_, "grad", 1}, output_arg{output_, "output", 2};
   checkSameSize("softmax_backward", grad_arg, output_arg);
   int64_t dim = maybe_wrap_dim(dim_, grad_.dim());
@@ -208,10 +206,10 @@ Tensor softmax_backward_cpu(
       dim >= 0 && dim < grad.dim(),
       "dim must be non-negative and less than input dimensions");
   if (grad.ndimension() > 0 && dim == grad.ndimension() - 1) {
-    softmax_backward_lastdim_kernel(kCPU, grad_input, grad, output, eps);
+    softmax_backward_lastdim_kernel(kCPU, grad_input, grad, output);
   } else {
     AT_DISPATCH_FLOATING_TYPES(grad.scalar_type(), "softmax_backward", [&] {
-      host_softmax_backward<scalar_t, false>(grad_input, grad, output, dim, static_cast<scalar_t>(eps));
+      host_softmax_backward<scalar_t, false>(grad_input, grad, output, dim);
     });
   }
   return grad_input;
@@ -221,8 +219,7 @@ Tensor log_softmax_backward_cpu(
     const Tensor& grad_,
     const Tensor& output_,
     int64_t dim_,
-    const Tensor& input_,
-    const double eps) {
+    const Tensor& input_) {
   TensorArg grad_arg{grad_, "grad", 1}, output_arg{output_, "output", 2};
   checkSameSize("log_softmax_backward", grad_arg, output_arg);
   int64_t dim = maybe_wrap_dim(dim_, grad_.dim());
@@ -247,12 +244,12 @@ Tensor log_softmax_backward_cpu(
       dim >= 0 && dim < grad.dim(),
       "dim must be non-negative and less than input dimensions");
   if (grad.ndimension() > 0 && dim == grad.ndimension() - 1) {
-    log_softmax_backward_lastdim_kernel(kCPU, grad_input, grad, output, eps);
+    log_softmax_backward_lastdim_kernel(kCPU, grad_input, grad, output);
   } else {
     AT_DISPATCH_FLOATING_TYPES_AND(at::ScalarType::BFloat16, grad.scalar_type(),
                                    "log_softmax_backward", [&] {
                                      host_softmax_backward<scalar_t, true>(
-                                         grad_input, grad, output, dim, eps);
+                                         grad_input, grad, output, dim);
                                    });
   }
   return grad_input;
