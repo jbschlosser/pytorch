@@ -12,7 +12,7 @@ namespace native {
 namespace {
 
 template <typename scalar_t, bool LogSoftMax>
-void host_softmax(Tensor output, const Tensor& input, const int64_t dim, const double eps) {
+void host_softmax(Tensor output, const Tensor& input, const int64_t dim, const scalar_t eps) {
   int64_t outer_size = 1;
   int64_t dim_size = input.size(dim);
   int64_t inner_size = 1;
@@ -39,7 +39,7 @@ void host_softmax(Tensor output, const Tensor& input, const int64_t dim, const d
           for (int64_t d = 1; d < dim_size; d++)
             max_input = std::max(max_input, input_data[d * dim_stride]);
 
-          acc_type<scalar_t, false> tmpsum = 0;
+          acc_type<scalar_t, false> tmpsum = eps;
           for (int64_t d = 0; d < dim_size; d++) {
             scalar_t z = std::exp(input_data[d * dim_stride] - max_input);
             if (!LogSoftMax) {
@@ -48,7 +48,6 @@ void host_softmax(Tensor output, const Tensor& input, const int64_t dim, const d
             tmpsum += z;
           }
 
-          tmpsum += static_cast<scalar_t>(eps);
           if (LogSoftMax)
             tmpsum = std::log(tmpsum);
           else

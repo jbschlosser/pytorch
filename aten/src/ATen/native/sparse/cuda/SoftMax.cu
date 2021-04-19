@@ -98,7 +98,7 @@ __global__ void cuda_sparse_coo_softmax_kernel(
     scalar_t* mx_row = mx_rows + index * nvalues;
 
     for (int64_t j = 0; j < nvalues; j++) {
-      scalar_t exp_sums = 0;
+      scalar_t exp_sums = eps;
       for (int64_t p = 0; p < pool_indices_size; p++) {
         auto i = pool_indices[p];
         auto values_row = input_values_acc[i];

@@ -615,7 +615,7 @@ WriteBpropResults(
 
 template <int ILP, typename scalar_t, typename accscalar_t, typename outscalar_t, template <typename, typename, typename> class Epilogue>
 __global__ void
-cunn_SoftMaxForward(outscalar_t *output, scalar_t *input, int classes, double eps)
+cunn_SoftMaxForward(outscalar_t *output, scalar_t *input, int classes, accscalar_t eps)
 {
   extern __shared__ unsigned char smem[];
   auto sdata = reinterpret_cast<accscalar_t*>(smem);
@@ -641,7 +641,7 @@ cunn_SoftMaxForward(outscalar_t *output, scalar_t *input, int classes, double ep
   accscalar_t threadExp = ilpReduce<SumExpFloat, ILP, scalar_t, accscalar_t>(
       shift, input, classes, SumExpFloat<scalar_t, accscalar_t>(max_k), static_cast<accscalar_t>(0));
   accscalar_t sumAll = blockReduce<Add, accscalar_t>(
-      sdata, threadExp, Add<accscalar_t>(), static_cast<accscalar_t>(0)) + static_cast<accscalar_t>(eps);
+      sdata, threadExp, Add<accscalar_t>(), static_cast<accscalar_t>(0)) + eps;
 
   Epilogue<scalar_t, accscalar_t, outscalar_t> epilogue(max_k, sumAll);
 
@@ -730,7 +730,8 @@ Tensor host_softmax(const Tensor & input_, const int64_t dim_, const bool half_t
             dim3 block = SoftMax_getBlockSize(ILP, dim_size);
             cunn_SoftMaxForward<ILP, scalar_t, accscalar_t, scalar_t, Epilogue>
               <<<grid, block, block.x * sizeof(accscalar_t), stream>>>(
-                output.data_ptr<scalar_t>(), input.data_ptr<scalar_t>(), dim_size, eps);
+                output.data_ptr<scalar_t>(), input.data_ptr<scalar_t>(), dim_size,
+                static_cast<accscalar_t>(eps));
             C10_CUDA_KERNEL_LAUNCH_CHECK();
           }
         } else {
