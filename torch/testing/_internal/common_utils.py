@@ -69,6 +69,116 @@ IS_SANDCASTLE = os.getenv('SANDCASTLE') == '1' or os.getenv('TW_JOB_USER') == 's
 IS_FBCODE = os.getenv('PYTORCH_TEST_FBCODE') == '1'
 IS_REMOTE_GPU = os.getenv('PYTORCH_TEST_REMOTE_GPU') == '1'
 
+
+class _TestParametrizer(object):
+    """
+    Decorator class for parametrizing a test function, yielding a set of new tests spawned
+    from the original generic test, each specialized for a specific set of test inputs. For
+    example, parametrizing a test across the set of ops will result in a test function per op.
+
+    The decision of how to parametrize / what to parametrize over is intended to be implemented
+    by each derived class.
+
+    In the details, the decorator adds a 'parametrize_fn' property to the test function that is called
+    during device-specific test instantiation performed in instantiate_device_type_tests(). Because of this,
+    there is no need to parametrize over device type, as that is already handled separately.
+    """
+    def _parametrize_test(self, test, generic_cls, device_cls):
+        """
+        Parametrizes the given test function across whatever dimension is specified by the derived class.
+        Tests can be parametrized over any arbitrary dimension or combination of dimensions, such as all
+        ops, all modules, or all ops + their associated dtypes.
+
+        Args:
+            test (fn): Test function to parametrize over
+            generic_cls (class): Generic test class object containing tests (e.g. TestFoo)
+            device_cls (class): Device-specialized test class object (e.g. TestFooCPU); set to None
+                if the tests are not part of a device-specific set
+
+        Returns:
+            Generator object returning 3-tuples of:
+                test (fn): Parametrized test function; must support a device arg and args for any params
+                test_name (str): Parametrized name of the test (e.g. test_bar_opname_int64)
+                param_kwargs (dict): Param kwargs to pass to the test (e.g. {'op': 'add', 'dtype': torch.int64})
+        """
+        raise NotImplementedError
+
+    def __call__(self, fn):
+        fn.parametrize_fn = self._parametrize_test
+        return fn
+
+
+def instantiate_parametrized_tests(generic_cls):
+    """
+    Instantiates tests that have been decorated with a parametrize_fn. This is generally performed by a
+    decorator subclass of _TestParametrizer. The generic test will be replaced on the test class by
+    parametrized tests with specialized names.
+
+    Args:
+        generic_cls (class): Generic test class object containing tests (e.g. TestFoo)
+    """
+    for attr_name in tuple(dir(generic_cls)):
+        class_attr = getattr(generic_cls, attr_name)
+        if not hasattr(class_attr, 'parametrize_fn'):
+            continue
+
+        # Remove the generic test from the test class.
+        delattr(generic_cls, attr_name)
+
+        # Add parametrized tests to the test class.
+        def instantiate_test_helper(cls, name, test, param_kwargs):
+            @wraps(test)
+            def instantiated_test(self, param_kwargs=param_kwargs):
+                test(self, **param_kwargs)
+
+            assert not hasattr(generic_cls, name), "Redefinition of test {0}".format(name)
+            setattr(generic_cls, name, instantiated_test)
+
+        for (test, test_name, param_kwargs) in class_attr.parametrize_fn(
+                class_attr, generic_cls=generic_cls, device_cls=None):
+            instantiate_test_helper(cls=generic_cls, name=test_name, test=test, param_kwargs=param_kwargs)
+
+
+class parametrize(_TestParametrizer):
+    """
+    Decorator for applying generic test parametrizations.
+
+    Args:
+        arg_str (str): String of arg names separate by commas (e.g. "x,y")
+        arg_values (iterable): Iterable of arg values (e.g. range(10)) or
+            tuples of arg values (e.g. [(1, 2), (3, 4)])
+    """
+    def __init__(self, arg_str, arg_values):
+        self.arg_names = arg_str.split(',')
+        self.arg_values = arg_values
+
+    def _parametrize_test(self, test, generic_cls, device_cls):
+
+        # Build a single composite test that tests all the parametrized cases.
+        @wraps(test)
+        def composite_test(test_cls, *args, **kwargs):
+            if len(self.arg_names) == 0:
+                # Just call the test directly.
+                test(test_cls, *args, **kwargs)
+            elif len(self.arg_names) == 1:
+                # Call the test once for each arg value.
+                for value in self.arg_values:
+                    param_kwargs = {
+                        self.arg_names[0]: value
+                    }
+                    test(test_cls, *args, **kwargs, **param_kwargs)
+            else:
+                # Handle the multiple arg case.
+                for value_tuple in self.arg_values:
+                    param_kwargs = {
+                        name: value for name, value in zip(self.arg_names, value_tuple)
+                    }
+                    test(test_cls, *args, **kwargs, **param_kwargs)
+
+        test_name = '{}{}'.format(test.__name__, '_' + device_cls.device_type if device_cls else '')
+        yield (composite_test, test_name, {})
+
+
 class ProfilingMode(Enum):
     LEGACY = 1
     SIMPLE = 2

@@ -12,7 +12,7 @@ import os
 import torch
 from torch.testing._internal.common_utils import TestCase, TEST_WITH_ROCM, TEST_MKL, \
     skipCUDANonDefaultStreamIf, TEST_WITH_ASAN, TEST_WITH_UBSAN, TEST_WITH_TSAN, \
-    IS_SANDCASTLE, IS_FBCODE, IS_REMOTE_GPU, DeterministicGuard, TEST_SKIP_NOARCH
+    IS_SANDCASTLE, IS_FBCODE, IS_REMOTE_GPU, DeterministicGuard, TEST_SKIP_NOARCH, _TestParametrizer
 from torch.testing._internal.common_cuda import _get_torch_cuda_version
 from torch.testing import \
     (get_all_dtypes)
@@ -632,43 +632,6 @@ class OpDTypes(Enum):
     supported_backward = 3  # Test all supported backward dtypes
     unsupported_backward = 4  # Test only unsupported backward dtypes
     none = 5  # Instantiate no dtype variants (no dtype kwarg needed)
-
-
-class _TestParametrizer(object):
-    """
-    Decorator class for parametrizing a test function, yielding a set of new tests spawned
-    from the original generic test, each specialized for a specific set of test inputs. For
-    example, parametrizing a test across the set of ops will result in a test function per op.
-
-    The decision of how to parametrize / what to parametrize over is intended to be implemented
-    by each derived class.
-
-    In the details, the decorator adds a 'parametrize_fn' property to the test function that is called
-    during device-specific test instantiation performed in instantiate_device_type_tests(). Because of this,
-    there is no need to parametrize over device type, as that is already handled separately.
-    """
-    def _parametrize_test(self, test, generic_cls, device_cls):
-        """
-        Parametrizes the given test function across whatever dimension is specified by the derived class.
-        Tests can be parametrized over any arbitrary dimension or combination of dimensions, such as all
-        ops, all modules, or all ops + their associated dtypes.
-
-        Args:
-            test (fn): Test function to parametrize over; must support least a device arg
-            generic_cls (class): Generic test class object containing tests (e.g. TestFoo)
-            device_cls (class): Device-specialized test class object (e.g. TestFooCPU)
-
-        Returns:
-            Generator object returning 3-tuples of:
-                test (fn): Parametrized test function; must support a device arg and args for any params
-                test_name (str): Parametrized name of the test (e.g. test_bar_opname_int64)
-                param_kwargs (dict): Param kwargs to pass to the test (e.g. {'op': 'add', 'dtype': torch.int64})
-        """
-        raise NotImplementedError
-
-    def __call__(self, fn):
-        fn.parametrize_fn = self._parametrize_test
-        return fn
 
 
 # Decorator that defines the OpInfos a test template should be instantiated for.
