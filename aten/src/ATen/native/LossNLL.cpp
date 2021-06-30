@@ -492,7 +492,7 @@ Tensor nll_loss_prob_target(
     const Tensor& target,
     const Tensor& weight,
     int64_t reduction) {
-  const auto n_classes = self.size(-1);
+  const auto n_classes = self.size(1);
   TORCH_CHECK(
       !weight.defined() || (weight.dim() == 1 && weight.numel() == n_classes),
       "weight tensor should be defined either for all ",
