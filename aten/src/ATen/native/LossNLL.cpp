@@ -490,22 +490,23 @@ Tensor nll_loss(const Tensor & self, const Tensor & target, const c10::optional<
 Tensor nll_loss_prob_target(
     const Tensor& self,
     const Tensor& target,
-    const c10::optional<Tensor>& weight,
+    const Tensor& weight,
     int64_t reduction) {
+  const auto n_classes = self.size(-1);
   TORCH_CHECK(
-      !weight.has_value() || (weight->dim() == 1 && weight->numel() == self.size(1)),
+      !weight.defined() || (weight.dim() == 1 && weight.numel() == n_classes),
       "weight tensor should be defined either for all ",
-      self.size(1),
+      n_classes,
       " classes or no classes"
       " but got weight tensor of shape: ",
-      weight->sizes());
+      weight.sizes());
 
   Tensor ret;
-  if (weight.has_value()) {
+  if (weight.defined()) {
     // Expand weight to the correct number of dims for broadcasting with input / target
     auto weight_bc_shape = std::vector<int64_t>(self.dim(), 1);
-    weight_bc_shape[1] = weight->size(0);
-    Tensor weight_ = weight->view(weight_bc_shape);
+    weight_bc_shape[1] = weight.size(0);
+    Tensor weight_ = weight.view(weight_bc_shape);
 
     ret = -(self * target * weight_).sum(1);
     if (reduction == Reduction::Mean) {
@@ -554,7 +555,11 @@ Tensor nll_loss_nd(
     TORCH_CHECK(at::isFloatingType(target.scalar_type()),
         "Expected floating point type for target with class probabilities, got ", target.scalar_type());
     TORCH_CHECK(ignore_index < 0, "ignore_index is not supported for floating point target");
-    ret = nll_loss_prob_target(input_, target_, weight, reduction);
+
+    // See [Note: hacky wrapper removal for optional tensor]
+    c10::MaybeOwned<Tensor> weight_maybe_owned = at::borrow_from_optional_tensor(weight);
+    const Tensor& weight_ = *weight_maybe_owned;
+    ret = nll_loss_prob_target(input_, target_, weight_, reduction);
   } else {
     if (input_.dim() == 2) {
       ret = at::nll_loss(input_, target_, weight, reduction, ignore_index);
