@@ -16472,7 +16472,7 @@ class TestNNDeviceType(NNTestCase):
             other_dims = [torch.randint(2, 5, size=(1,)).item() for _ in range(k)]
             input = torch.randn(N, C, *other_dims, device=device, requires_grad=True)
             target = torch.empty(N, *other_dims, dtype=torch.long, device=device).random_(0, C)
-            weight = torch.randn(C).abs()
+            weight = torch.randn(C, device=device).abs()
 
             # Get one-hot representation of the target.
             target_one_hot = F.one_hot(target, num_classes=C).to(input.dtype)
