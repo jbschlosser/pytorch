@@ -153,30 +153,27 @@ class parametrize(_TestParametrizer):
         self.arg_values = arg_values
 
     def _parametrize_test(self, test, generic_cls, device_cls):
-
-        # Build a single composite test that tests all the parametrized cases.
-        @wraps(test)
-        def composite_test(test_cls, *args, **kwargs):
-            if len(self.arg_names) == 0:
-                # Just call the test directly.
-                test(test_cls, *args, **kwargs)
-            elif len(self.arg_names) == 1:
-                # Call the test once for each arg value.
-                for value in self.arg_values:
-                    param_kwargs = {
-                        self.arg_names[0]: value
-                    }
-                    test(test_cls, *args, **kwargs, **param_kwargs)
-            else:
-                # Handle the multiple arg case.
-                for value_tuple in self.arg_values:
-                    param_kwargs = {
-                        name: value for name, value in zip(self.arg_names, value_tuple)
-                    }
-                    test(test_cls, *args, **kwargs, **param_kwargs)
-
-        test_name = '{}{}'.format(test.__name__, '_' + device_cls.device_type if device_cls else '')
-        yield (composite_test, test_name, {})
+        base_test_name = '{}{}'.format(test.__name__, '_' + device_cls.device_type if device_cls else '')
+        if len(self.arg_names) == 0:
+            # Just return the test as-is.
+            yield (test, base_test_name, {})
+        elif len(self.arg_names) == 1:
+            # Call the test once for each arg value.
+            for value in self.arg_values:
+                param_kwargs = {
+                    self.arg_names[0]: value
+                }
+                test_name = '{}_{}'.format(base_test_name, str(value).lower())
+                yield (test, test_name, param_kwargs)
+        else:
+            # Handle the multiple arg case.
+            for value_tuple in self.arg_values:
+                values = list(value_tuple)
+                param_kwargs = {
+                    name: value for name, value in zip(self.arg_names, values)
+                }
+                test_name = '{}_{}'.format(base_test_name, '_'.join([str(v).lower() for v in values]))
+                yield (test, test_name, param_kwargs)
 
 
 class ProfilingMode(Enum):
